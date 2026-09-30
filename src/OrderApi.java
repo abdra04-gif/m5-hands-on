@@ -29,8 +29,10 @@ public class OrderApi {
     /**
      * Create an order for a customer ({@code POST /orders}).
      *
-     * <p>The new order is assigned a server-generated UUID and starts in status
-     * {@code NEW}; any {@code id} or {@code status} in the request body is ignored.
+     * <p>Only {@code customerId} and {@code amount} are read from the request
+     * body; any {@code id} or {@code status} it carries is ignored. The id and
+     * status of the returned order are those assigned by
+     * {@link OrderService#create(String, java.math.BigDecimal)}.
      *
      * <p>Invalid input is reported through the response status, not by an exception.
      *
