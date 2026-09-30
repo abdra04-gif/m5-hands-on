@@ -23,6 +23,11 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/OrderDto'
+        # Added by hand after the Swagger UI check: the generated spec had no
+        # 4xx here because OrderApi#list has no error path. 406 comes from
+        # Spring's content negotiation, not from the method.
+        '406':
+          description: Not Acceptable. The Accept header does not allow application/json.
     post:
       operationId: createOrder
       summary: Create an order for a customer
