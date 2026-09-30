@@ -10,8 +10,8 @@
 - **Evidence** (all reproducible):
   - `evidence/5A-*-jacoco.csv` and `evidence/5A-*-pit.csv`: raw JaCoCo and
     PIT results at each 5A stage (baseline, after Part B, after Part D).
-  - `evidence/5B-*`: the JavaDoc passes, the raw OpenAPI output and the
-    Swagger UI render.
+  - `evidence/5B-*`: the JavaDoc verification passes, the grep check of the
+    README draft, and the Swagger UI render check with screenshots.
   - Git history: `main` is the unchanged starter. Branch `m5-handson` has one
     commit per step.
 - **Starter deviations** (details in Session 5B → Setup):
@@ -324,3 +324,254 @@ after), but it raised the mutation score.
 coverage: after Part B, coverage already reported 100% of the method's
 branches, but PIT still found an untested boundary (`< 0` vs `<= 0`) where a
 real off-by-one bug would have passed every test.
+
+---
+
+## Session 5B — Auto-documentation
+
+### Setup — `OrderApi.java` is missing from the starter
+
+The handout lists `OrderApi.java` ("Spring `@RestController` with four
+endpoints; no JavaDoc, no README section") and the starter README says it
+has "fake Spring annotations already in place so it compiles without Spring
+on the classpath". Neither the class nor the annotations are in the archive.
+What I checked:
+
+| Where | Result |
+|---|---|
+| `m5-pub.tgz` downloaded from the course page (byte-identical to my copy) | 8 files (`Makefile`, `README.md`, `.gitignore`, `test/TaxCalculatorTest.java`, `src/{Order,OrderDto,OrderService,TaxCalculator}.java`); no `OrderApi.java`, no annotation stubs |
+| Course site: `m5-pub/`, `OrderApi.java`, `m5-pub.tar.gz`/`.zip`, `m5.tgz` and similar | all 404 |
+| Other starters `m2-pub.tgz`, `m3-pub.tgz`, `m4-pub.tgz` | no `OrderApi`. m3 has an unrelated plain-Java `OrderController` (item/qty) |
+| `lecture5.pdf` | no `OrderApi` code |
+| Local disk (Spotlight + `find`) | no other copy |
+
+In the archive, the files in `src/` are dated 19:50 but the `src/` directory
+itself is dated 19:58, which suggests a file was removed from `src/` just
+before packaging.
+
+**What I did** (commit `6e9bda2`): reconstructed `src/OrderApi.java` from the
+description, with four endpoints that map one-to-one onto the four
+`OrderService` methods (`listAll`, `findById`, `create`, `cancel`) and use
+the existing `OrderDto.from`, plus `src/SpringStubs.java` (no-op annotations
+and a minimal `ResponseEntity`). As the setup requires, it had **no JavaDoc**
+at the start of Part A. Any details the handout does not fix are my choices:
+paths, `OrderDto` as the POST body, 400 on invalid input, and 409 for
+re-cancelling. All Session 5B artefacts document this reconstructed class. If
+the original is published, Parts A–C should be redone against it.
+
+Endpoints, checked against a scratch program that calls the controller:
+
+```
+POST valid: 201 OrderDto[id=85ef5f43-…, customerId=c1, amount=99.50, status=NEW]
+POST amount 0: 400    POST amount -1: 400    POST blank cust: 400    POST null body: 400
+GET list size: 1      GET found: 200         GET missing: 404
+DELETE: 204           DELETE again: 409      DELETE missing: 404
+```
+
+### Part A — JavaDoc for one endpoint (`POST /orders`, `OrderApi#create`)
+
+**Prompt:**
+
+```
+Generate JavaDoc for the following method. Rules:
+- One-line summary in imperative mood.
+- Describe the contract, not the implementation.
+- @param for each parameter with type and constraints.
+- @return with what is returned.
+- @throws for each declared or unchecked exception the
+  caller should be aware of.
+- If any behaviour is not evident from the code, write
+  "TODO" and skip.
+
+@PostMapping
+public ResponseEntity<OrderDto> create(@RequestBody OrderDto body) {
+    if (body == null
+            || body.customerId() == null || body.customerId().isBlank()
+            || body.amount() == null || body.amount().signum() <= 0) {
+        return ResponseEntity.badRequest().build();
+    }
+    Order o = service.create(body.customerId(), body.amount());
+    return ResponseEntity.status(201).body(OrderDto.from(o));
+}
+```
+
+**AI reply (pass 1)**, pasted into the source as-is (commit `6a76dbb`):
+
+```java
+/**
+ * Create an order for a customer ({@code POST /orders}).
+ *
+ * <p>The new order is assigned a server-generated UUID and starts in status
+ * {@code NEW}; any {@code id} or {@code status} in the request body is ignored.
+ *
+ * <p>Invalid input is reported through the response status, not by an exception.
+ *
+ * <p>TODO: currency, scale and upper bound of {@code amount} are not
+ * constrained by the code.
+ *
+ * @param body the order to create, as an {@link OrderDto}; may be {@code null}
+ *             (rejected). {@code customerId} must be non-null and not blank;
+ *             {@code amount} must be non-null and strictly greater than zero
+ * @return {@code 201 Created} with the created order as an {@link OrderDto};
+ *         {@code 400 Bad Request} with an empty body if {@code body} is
+ *         {@code null} or violates the constraints above
+ */
+```
+
+There is no `@throws`: the method declares no exceptions and throws none
+(every validation failure returns 400), so there is no exception the caller
+needs to know about.
+
+**Verification prompt (pass 1):**
+
+```
+Given the JavaDoc above and the method body below,
+identify any statement in the JavaDoc that is inconsistent
+with the code. Do not fix; just list.
+```
+
+**Reply (pass 1): 1 inconsistency** (full reply: `evidence/5B-A-verify-pass1.md`).
+
+1. "The new order is assigned a server-generated UUID and starts in status
+   `NEW`": the method body neither generates an id nor sets a status, so
+   nothing in the method supports "UUID" or "`NEW`". The statement happens to
+   be true (see `OrderService#create` and the `Order` constructor), but it
+   describes other classes. Under the prompt's own TODO rule it should not be
+   there.
+
+**Fix** (commit `d052245`): replaced it with *"Only `customerId` and `amount`
+are read from the request body; any `id` or `status` it carries is ignored.
+The id and status of the returned order are those assigned by
+`OrderService#create(String, BigDecimal)`."*
+
+**Reply (pass 2): no inconsistencies** (`evidence/5B-A-verify-pass2.md`).
+
+Extra checks by hand: `javadoc -Xdoclint:all` reports nothing on `create`,
+and the scratch-program output above matches every `@param`/`@return` claim.
+
+### Part B — Draft the README
+
+**Prompt.** The file tree (below), the top-level files (`Makefile`, the
+starter `README.md`, `.gitignore`) and every file under `src/` were pasted
+with:
+
+```
+Draft a README.md for this repository with sections:
+description, build, quick example, contributing, license.
+Use MIT license placeholder.
+Rules:
+- Do NOT invent features not present in the code.
+- If a section has no evidence in the code, write "TODO" and
+  skip.
+- The one-line description must be a factual summary of what
+  the code does, not marketing copy.
+```
+
+```
+.gitignore  Makefile  README.md
+src/Order.java  src/OrderApi.java  src/OrderDto.java  src/OrderService.java
+src/SpringStubs.java  src/TaxCalculator.java
+test/TaxCalculatorTest.java
+```
+
+The reply is saved unedited as **`README.raw.md`** (commit `e1aee1e`).
+
+**Editing.** I grepped the code for every capability the draft claims. The
+commands and output are in `evidence/5B-B-readme-claims.md`.
+
+**Invented features deleted: 4**
+
+| # | Claim in `README.raw.md` | grep evidence | Action |
+|---|---|---|---|
+| 1 | "backed by a **thread-safe** in-memory order store" | No `synchronized`/`Atomic`/`volatile`/`Lock`. `ConcurrentHashMap` only makes single map operations atomic, and `OrderService.cancel` does get → check → `setStatus` on a mutable `Order` without locking. | Deleted. Now "in-memory order store (a `ConcurrentHashMap`)". |
+| 2 | "**JSON request/response serialization** of `OrderDto`" | No `json`/`jackson`/`ObjectMapper`; the annotations are no-op stubs. | Deleted. |
+| 3 | "**Start the service** and create an order: `curl -X POST http://localhost:8080/orders …`" | No `main`, `SpringApplication`, `8080` or `HttpServer`. Nothing can be started. | Deleted. The quick example now calls `OrderApi` from Java. |
+| 4 | "See **`LICENSE`** for details" | `ls LICENSE*` finds nothing | Replaced with "MIT License — TODO: add a `LICENSE` file". |
+
+Also reworded (overstated rather than invented): "a REST API for managing
+orders" became "a Spring-style order controller that compiles against fake
+annotations and is not served over HTTP".
+
+Other hand edits, all in `README.md` (commit `703dd78`):
+
+- **One-line description:** written in my own words.
+- **Contributing:** the draft had TODO. I replaced it with real steps: the
+  make targets to run, plus recording prompts in `PROMPTS.md`.
+- **Build:** fixed the coverage report path to `coverage/index.html`, removed
+  the redundant `make deps` step, and stated the JDK 17 requirement
+  (`--release 17` in the Makefile).
+- **Quick example:** checked every commented result against real output
+  (`52500.00`, `180.00`, `false`, `201`).
+
+### Part C — OpenAPI spec
+
+**Prompt** (with the full `OrderApi.java` at commit `d052245`):
+
+```
+Read the following Spring @RestController and generate an
+OpenAPI 3.0 YAML spec covering:
+- Every endpoint (path, method, summary from JavaDoc).
+- Request body schemas for POST/PUT.
+- Response schemas for 2xx and 4xx.
+- Referenced DTO schemas in the components section.
+If any endpoint's behaviour is unclear, add a TODO comment
+in the spec at that location.
+```
+
+The output was saved as **`openapi.yaml`** and committed unedited
+(`d93a158`). TODO comments in the output:
+
+- `amount`: currency, scale and upper bound are not constrained by the code.
+- Three summaries (`list`, `get`, `cancel`): those methods have no JavaDoc
+  (the handout asks for only one endpoint), so their summaries are derived
+  from the method body.
+
+**Render check:** Swagger UI 5.33.0, run locally in headless Chrome. Details
+and screenshots: `evidence/5B-C-swagger-check.md`,
+`evidence/5B-C-swagger-ui-raw.png`, `evidence/5B-C-swagger-ui-final.png`.
+
+| Check | Result on the generated spec |
+|---|---|
+| Every endpoint appears with the correct path and method | ✓ `GET /orders`, `POST /orders`, `GET /orders/{id}`, `DELETE /orders/{id}` |
+| Every referenced DTO is defined in components | ✓ `OrderDto` |
+| Every method has ≥1 2xx and ≥1 4xx | ✗ **`GET /orders` had only `200`** |
+
+**Missing 4xx added by hand: 1** (commit `a47a72b`). I added
+`406 Not Acceptable` to `GET /orders`, with a comment in the spec saying it
+comes from Spring's content negotiation, not from the method, which has no
+error path. After the edit, all three checks pass in the rendered UI, and
+`openapi-spec-validator` reports a valid OpenAPI 3.0.3 document.
+
+### Part D — Reflect
+
+- **How many JavaDoc inconsistencies did the AI's self-check catch on the
+  first pass?** **1**: the claim about a UUID and status `NEW`. It was true
+  of the system but not supported by the method body. The second pass found
+  0.
+- **How many invented features did the README pass produce?** **4**: thread
+  safety, JSON serialization, a runnable server with a curl example, and a
+  `LICENSE` file. There was also one overstated description ("REST API").
+- **Which artefact needed the most hand editing, and why?** **The README**:
+  4 deletions, a rewritten description, a filled-in Contributing section,
+  and fixes to Build and Quick example. The JavaDoc needed one sentence, and
+  the OpenAPI spec one response code. JavaDoc and OpenAPI are derived from
+  code the model sees in full, so their claims can be checked line by line.
+  A README has to cover things the code does not contain (how to run it,
+  licensing, examples), and the model filled those gaps with what a typical
+  Spring service has (JSON, a server on :8080, a LICENSE file) rather than
+  what this repository has. Every claim needed a grep.
+
+---
+
+## Deliverables checklist
+
+| Deliverable | Where |
+|---|---|
+| 5A: `PROMPTS.md` (baseline, prompt + reply, assertion review, mutation, reflection) | this file |
+| 5A: generated tests + targeted test | `test/TaxCalculatorTest.java` (16 tests, all pass) |
+| 5B: JavaDoc on the chosen endpoint | `src/OrderApi.java`, `create` |
+| 5B: `README.raw.md` and `README.md` | repo root |
+| 5B: `openapi.yaml` | repo root |
+| 5B: updated `PROMPTS.md` covering both sessions | this file |
+| Supporting evidence | `evidence/` |
+| PR | branch `m5-handson` (one commit per step) on top of `main` (unchanged starter) |
