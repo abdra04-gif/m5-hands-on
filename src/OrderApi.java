@@ -26,6 +26,24 @@ public class OrderApi {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    /**
+     * Create an order for a customer ({@code POST /orders}).
+     *
+     * <p>The new order is assigned a server-generated UUID and starts in status
+     * {@code NEW}; any {@code id} or {@code status} in the request body is ignored.
+     *
+     * <p>Invalid input is reported through the response status, not by an exception.
+     *
+     * <p>TODO: currency, scale and upper bound of {@code amount} are not
+     * constrained by the code.
+     *
+     * @param body the order to create, as an {@link OrderDto}; may be {@code null}
+     *             (rejected). {@code customerId} must be non-null and not blank;
+     *             {@code amount} must be non-null and strictly greater than zero
+     * @return {@code 201 Created} with the created order as an {@link OrderDto};
+     *         {@code 400 Bad Request} with an empty body if {@code body} is
+     *         {@code null} or violates the constraints above
+     */
     @PostMapping
     public ResponseEntity<OrderDto> create(@RequestBody OrderDto body) {
         if (body == null
