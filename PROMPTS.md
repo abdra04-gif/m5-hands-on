@@ -13,7 +13,7 @@
   - `evidence/5B-*`: the JavaDoc verification passes, the grep check of the
     README draft, and the Swagger UI render check with screenshots.
   - Git history: `main` is the unchanged starter. Branch `m5-handson` has one
-    commit per step.
+    commit per step. PR: https://github.com/abdra04-gif/m5-hands-on/pull/1
 - **Starter deviations** (details in Session 5B → Setup):
   1. `OrderApi.java` is **not in `m5-pub.tgz`**, although the handout and the
      starter README both describe it. I reconstructed it; see 5B Setup.
@@ -574,4 +574,6 @@ error path. After the edit, all three checks pass in the rendered UI, and
 | 5B: `openapi.yaml` | repo root |
 | 5B: updated `PROMPTS.md` covering both sessions | this file |
 | Supporting evidence | `evidence/` |
-| PR | branch `m5-handson` (one commit per step) on top of `main` (unchanged starter) |
+| PR | https://github.com/abdra04-gif/m5-hands-on/pull/1: branch `m5-handson` (one commit per step) into `main` (unchanged starter) |
+
+Repository: https://github.com/abdra04-gif/m5-hands-on
