@@ -1,0 +1,123 @@
+openapi: 3.0.3
+info:
+  title: Order API
+  version: 0.1.0
+  description: >
+    Generated from src/OrderApi.java (Spring-style @RestController over an
+    in-memory OrderService). Error responses (4xx) carry no body.
+  license:
+    name: MIT
+paths:
+  /orders:
+    get:
+      operationId: listOrders
+      # TODO: no JavaDoc on OrderApi#list; summary derived from the method body.
+      summary: List all orders
+      description: Returns every stored order, in no guaranteed order.
+      responses:
+        '200':
+          description: All orders (possibly an empty array).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrderDto'
+        # Added by hand after the Swagger UI check: the generated spec had no
+        # 4xx here because OrderApi#list has no error path. 406 comes from
+        # Spring's content negotiation, not from the method.
+        '406':
+          description: Not Acceptable. The Accept header does not allow application/json.
+    post:
+      operationId: createOrder
+      summary: Create an order for a customer
+      description: >
+        Only customerId and amount are read from the body; id and status are
+        ignored and assigned by the service.
+      # TODO: currency, scale and upper bound of amount are not constrained by the code.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderDto'
+            example:
+              customerId: c1
+              amount: 99.50
+      responses:
+        '201':
+          description: Order created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDto'
+              example:
+                id: 89c31df1-4086-4cff-84c4-30a695dcf26d
+                customerId: c1
+                amount: 99.50
+                status: NEW
+        '400':
+          description: >
+            Body is missing, customerId is null or blank, or amount is null or
+            not greater than zero.
+  /orders/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Order id as returned by POST /orders.
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getOrder
+      # TODO: no JavaDoc on OrderApi#get; summary derived from the method body.
+      summary: Get an order by id
+      responses:
+        '200':
+          description: The order.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDto'
+        '404':
+          description: No order with this id.
+    delete:
+      operationId: cancelOrder
+      # TODO: no JavaDoc on OrderApi#cancel; summary derived from the method body.
+      summary: Cancel an order
+      description: >
+        Sets the order's status to CANCELLED. The order is not removed and is
+        still returned by GET.
+      responses:
+        '204':
+          description: Order cancelled.
+        '404':
+          description: No order with this id.
+        '409':
+          description: Order is already cancelled.
+components:
+  schemas:
+    OrderDto:
+      type: object
+      required: [customerId, amount]
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Assigned by the server; ignored on create.
+        customerId:
+          type: string
+          minLength: 1
+          description: Must not be blank (whitespace-only is rejected).
+        amount:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+          description: Must be greater than zero.
+        status:
+          type: string
+          enum: [NEW, CANCELLED]
+          readOnly: true
+          description: NEW on creation; CANCELLED after DELETE. Ignored on create.
